@@ -115,7 +115,7 @@ def test_dependency_audit_offline(tmp_path):
 
 
 # ---------- Stage 4: reports ----------
-def test_html_report_contains_only_real_findings(db):
+def test_html_report_contains_only_real_findings(db, tmp_path):
     db.execute("INSERT INTO assets (name, asset_type, target, authorization_status) "
                "VALUES ('t','website','https://t.test','approved')")
     aid = db.scalar("SELECT id FROM assets")
@@ -190,7 +190,7 @@ def test_lab_sqli_and_verification(db):
     assert db.scalar("SELECT COUNT(*) FROM challenge_results") == 1  # failed not stored
 
 
-def test_academy_quiz_and_certificate(db):
+def test_academy_quiz_and_certificate(db, tmp_path):
     from academy import course_manager, student_manager, certificates
     course_manager.seed(db)
     sid = student_manager.add_student(db, "Cert Student")

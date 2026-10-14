@@ -128,7 +128,7 @@ def test_html_report_contains_only_real_findings(db):
                "VALUES (?,?,?,?, 'real evidence line')",
                (sid, "Real finding", "high", "confirmed"))
     from reports.report_generator import generate_html
-    out = generate_html(db, sid, "/tmp/reports-test")
+    out = generate_html(db, sid, str(tmp_path))
     html_text = open(out, encoding="utf-8").read()
     assert "Real finding" in html_text
     assert "real evidence line" in html_text
@@ -202,11 +202,11 @@ def test_academy_quiz_and_certificate(db):
     result = course_manager.grade_quiz(db, quiz, answers)
     assert result["passed"] is True
     student_manager.record_quiz(db, sid, cid, result)
-    path = certificates.generate(db, sid, cid, "/tmp/certs-test")
+    path = certificates.generate(db, sid, cid, str(tmp_path))
     assert path and os.path.exists(path)
     assert "no external accreditation" in open(path).read()
     # incomplete course must NOT certify
     sid2 = student_manager.add_student(db, "Incomplete")
-    assert certificates.generate(db, sid2, cid, "/tmp/certs-test") is None
-    out = student_manager.export_csv(db, "/tmp/academy-export.csv")
+    assert certificates.generate(db, sid2, cid, str(tmp_path)) is None
+    out = student_manager.export_csv(db, str(tmp_path / "academy-export.csv"))
     assert "Cert Student" in open(out).read()

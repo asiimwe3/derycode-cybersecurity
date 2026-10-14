@@ -103,9 +103,9 @@ def test_source_audit_detects_secrets(tmp_path):
         assert "hunter2hunter2" not in f["evidence"]
 
 
-def test_dependency_audit_offline():
+def test_dependency_audit_offline(tmp_path):
     from secscan.dependency_audit import audit_manifest
-    man = Path("/tmp/req-test.txt")
+    man = tmp_path / "req-test.txt"
     man.write_text("requests==2.28.0\npyyaml==5.3.1\nflask==3.0.0\n")
     findings, notes = audit_manifest(str(man), allow_online=False)
     titles = " | ".join(f["title"] for f in findings)

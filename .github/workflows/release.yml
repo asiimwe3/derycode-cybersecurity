@@ -1,0 +1,42 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build portable app (PyInstaller)
+        run: pyinstaller packaging/dcs.spec --noconfirm
+
+      - name: Build installer (Inno Setup)
+        shell: cmd
+        run: |
+          choco install innosetup -y --no-progress
+          "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" packaging\installer.iss
+
+      - name: Zip portable build
+        shell: pwsh
+        run: Compress-Archive -Path dist\DerycodeCybersecurity\* -DestinationPath DerycodeCybersecurity-Portable-win64.zip
+
+      - name: Create release with artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-installer/DerycodeCybersecurity-Setup.exe
+            DerycodeCybersecurity-Portable-win64.zip
+          generate_release_notes: true

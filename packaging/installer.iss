@@ -1,4 +1,4 @@
-; Derycode Cybersecurity — Windows installer (Stage 8)
+; Derycode Cybersecurity - Windows installer (Stage 8)
 ; Prerequisite: run `pyinstaller packaging/dcs.spec` first.
 ; Build with Inno Setup 6: compile this script.
 

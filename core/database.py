@@ -12,6 +12,7 @@ import os
 import secrets
 import shutil
 import sqlite3
+import threading
 import time
 from pathlib import Path
 
@@ -211,7 +212,12 @@ class Database:
     def __init__(self, path=None):
         self.path = Path(path) if path else default_db_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(self.path))
+        # Scans run in worker threads (QThread). SQLite connections are bound to the
+        # creating thread by default, so allow cross-thread use and serialise every
+        # access through one re-entrant lock (fixes "SQLite objects created in a
+        # thread can only be used in that same thread").
+        self._lock = threading.RLock()
+        self.conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
         self.migrate()
@@ -230,14 +236,17 @@ class Database:
 
     # ---------- helpers ----------
     def query(self, sql, params=()):
-        return self.conn.execute(sql, params).fetchall()
+        with self._lock:
+            return self.conn.execute(sql, params).fetchall()
 
     def query_one(self, sql, params=()):
-        return self.conn.execute(sql, params).fetchone()
+        with self._lock:
+            return self.conn.execute(sql, params).fetchone()
 
     def execute(self, sql, params=()):
-        with self.conn:
-            return self.conn.execute(sql, params)
+        with self._lock:
+            with self.conn:
+                return self.conn.execute(sql, params)
 
     def scalar(self, sql, params=(), default=0):
         row = self.query_one(sql, params)
@@ -309,9 +318,11 @@ class Database:
         dest = backup_dir / f"dcs-backup-{time.strftime('%Y%m%d-%H%M%S')}.db"
         target = sqlite3.connect(str(dest))
         with target:
-            self.conn.backup(target)
+            with self._lock:
+                self.conn.backup(target)
         target.close()
         return dest
 
     def close(self):
-        self.conn.close()
+        with self._lock:
+            self.conn.close()

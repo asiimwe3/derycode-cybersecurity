@@ -210,3 +210,47 @@ def test_academy_quiz_and_certificate(db, tmp_path):
     assert certificates.generate(db, sid2, cid, str(tmp_path)) is None
     out = student_manager.export_csv(db, str(tmp_path / "academy-export.csv"))
     assert "Cert Student" in open(out).read()
+
+
+# ---------- Regression: SQLite used from a worker thread (user-reported crash) ----------
+def test_database_usable_from_worker_thread(db):
+    """Scans run in QThread workers; the DB is created on the main thread."""
+    import threading
+    errors, results = [], []
+
+    def worker(n):
+        try:
+            db.execute("INSERT INTO assets (name, asset_type, target) VALUES (?,?,?)",
+                       (f"t{n}", "website", f"https://t{n}.example"))
+            results.append(db.scalar("SELECT COUNT(*) FROM assets"))
+        except Exception as e:                      # ProgrammingError before the fix
+            errors.append(repr(e))
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert errors == []
+    assert db.scalar("SELECT COUNT(*) FROM assets") == 8
+
+
+def test_full_scan_runs_in_thread(db, mock_site):
+    """End-to-end: asset registered on main thread, real scan run from a worker thread."""
+    from core.scope_manager import ScopeManager
+    from secscan.engine import ScanRunner
+    sm = ScopeManager(db)
+    aid = sm.register_asset("mock", "website", mock_site)
+    sm.authorize_asset(aid, "own test target", authorized_by="owner")
+    out = {}
+
+    def run():
+        try:
+            out["result"] = ScanRunner(db, sm, aid, ["website_checks"]).run()
+        except Exception as e:                       # pre-fix: ProgrammingError
+            out["err"] = repr(e)
+
+    t = threading.Thread(target=run)
+    t.start()
+    t.join(90)
+    assert "err" not in out, out.get("err")
+    assert db.scalar("SELECT COUNT(*) FROM scans WHERE status = 'completed'") >= 1
+    assert db.scalar("SELECT COUNT(*) FROM findings") > 0

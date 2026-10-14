@@ -27,8 +27,8 @@ jobs:
         shell: cmd
         run: |
           choco install innosetup -y --no-progress
-          mkdir dist-installer 2>nul
-"%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" /Odist-installer /FDerycodeCybersecurity-Setup packaging\installer.iss
+          if not exist dist-installer mkdir dist-installer
+          "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" /Odist-installer /FDerycodeCybersecurity-Setup packaging\installer.iss
 
       - name: Zip portable build
         shell: pwsh

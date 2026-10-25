@@ -254,3 +254,30 @@ def test_full_scan_runs_in_thread(db, mock_site):
     assert "err" not in out, out.get("err")
     assert db.scalar("SELECT COUNT(*) FROM scans WHERE status = 'completed'") >= 1
     assert db.scalar("SELECT COUNT(*) FROM findings") > 0
+
+
+def test_spa_catchall_not_reported_as_exposed_files(db, monkeypatch):
+    """Sites that return index.html for every path must NOT be flagged as
+    exposing /backup.zip, /.env etc. (regression: false-positive criticals)."""
+    import secscan.website_checks as wc
+
+    class SpaHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = b"<!DOCTYPE html><html><body>app shell</body></html>"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    httpd = http.server.HTTPServer(("127.0.0.1", 0), SpaHandler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        findings = wc.check_website(f"http://127.0.0.1:{httpd.server_address[1]}")
+    finally:
+        httpd.shutdown()
+    exposed = [f for f in findings if "Publicly accessible sensitive file" in f["title"]]
+    assert exposed == [], exposed

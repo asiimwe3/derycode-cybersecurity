@@ -151,6 +151,12 @@ def check_website(url, cancel=None):
         try:
             s, h, b = fetch(base + path, cancel=cancel)
             if s == 200 and len(b) > 0:
+                head = b[:200].lstrip().lower()
+                ctype = (h.get("Content-Type") or "").lower()
+                # SPA catch-all: server returns the app shell (HTML) for every
+                # path. That is NOT the requested file — downgrade, never confirm.
+                if head.startswith((b"<!doctype", b"<html")) or "text/html" in ctype:
+                    continue
                 if path in ("/.env",):
                     sev, conf = "critical", "confirmed"
                 elif path.endswith((".sql", ".zip", ".tar.gz",)):
